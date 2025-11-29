@@ -9,8 +9,8 @@ interface DashboardCardProps {
 
 const DashboardCard: React.FC<DashboardCardProps> = ({ title, value, unit, icon }) => {
   const [isAnimating, setIsAnimating] = useState(false);
-  // FIX: The call `useRef<string>()` is interpreted as requiring an initial string value.
-  // By typing it as `useRef<string | undefined>` and providing `undefined` as the initial value, we resolve the error.
+  // FIX: When initializing `useRef` without an argument, its `current` property is `undefined`.
+  // The type must be `string | undefined` to reflect this, resolving the TypeScript error.
   const prevValueRef = useRef<string | undefined>();
 
   useEffect(() => {
