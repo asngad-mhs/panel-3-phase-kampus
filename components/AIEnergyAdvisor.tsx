@@ -30,19 +30,26 @@ const AIEnergyAdvisor: React.FC<AIEnergyAdvisorProps> = ({ phaseData }) => {
       const dataSummary = phaseData.map(p => 
         `Phase ${p.name}: Voltage=${p.voltage.toFixed(1)}V, Current=${p.current.toFixed(1)}A, Power=${p.power.toFixed(2)}kW, Status=${p.status}`
       ).join('; ');
+
+      const powers = phaseData.map(p => p.power);
+      const maxPower = Math.max(...powers);
+      const minPower = Math.min(...powers);
+      const imbalance = maxPower > 0 ? ((maxPower - minPower) / maxPower) * 100 : 0;
       
       const prompt = `
         You are an expert AI energy advisor for the UNUGHA university campus.
         Analyze the following real-time 3-phase power data and provide a concise, actionable report in markdown format.
         
         Current Data: ${dataSummary}
+        Calculated Load Imbalance: ${imbalance.toFixed(1)}%
 
         Your report should include:
-        1.  A brief "System Status" summary (e.g., "All systems nominal," "Minor voltage fluctuation detected," "Critical alert on Phase X").
-        2.  A section on "Potential Issues" if any anomalies are detected (like voltage deviations, high current, or imbalances).
-        3.  A section with one or two "Efficiency Recommendations" (e.g., "Consider shifting non-critical loads from Phase T..." or "Overall consumption is stable, continue monitoring.").
+        1.  **System Status**: A brief summary (e.g., "All systems nominal," "Minor voltage fluctuation detected," "Critical alert on Phase X").
+        2.  **Load Balance Analysis**: Comment on the load imbalance percentage. If it's over 10%, it's a potential issue.
+        3.  **Potential Issues**: Highlight any anomalies detected (voltage deviations outside 210-235V, high current, or imbalances).
+        4.  **Efficiency Recommendations**: Provide one or two specific, actionable recommendations (e.g., "Consider shifting a 0.5kW load from Phase R to S to improve balance," or "Overall consumption is stable, continue monitoring.").
         
-        Keep the language clear and direct for technical staff. Do not include a preamble.
+        Keep the language clear and direct for technical staff. Use bold for headings.
       `;
       
       const response = await ai.models.generateContent({
@@ -61,26 +68,35 @@ const AIEnergyAdvisor: React.FC<AIEnergyAdvisorProps> = ({ phaseData }) => {
   }, [phaseData]);
 
   const renderFormattedAnalysis = (text: string) => {
+    // Improved renderer for markdown-like text
     return text.split('\n').map((line, index) => {
-      if (line.startsWith('**') && line.endsWith('**')) {
-        return <h4 key={index} className="font-bold text-cyan-400 mt-3 mb-1">{line.replace(/\*\*/g, '')}</h4>;
-      }
-      if (line.startsWith('* ')) {
-        return <li key={index} className="ml-4 list-disc">{line.substring(2)}</li>;
-      }
-       if (line.startsWith('1. ') || line.startsWith('2. ') || line.startsWith('3. ')) {
-        const headingText = line.substring(3).replace(/\*\*/g, '');
-        const heading = headingText.split(':')[0];
-        const content = headingText.split(':')[1];
-        return <div key={index} className="mt-2"><strong className="text-cyan-400">{heading}:</strong>{content}</div>;
-       }
-      return <p key={index}>{line}</p>;
+        line = line.trim();
+        if (line.startsWith('**') && line.endsWith('**')) {
+            return <h4 key={index} className="font-bold text-cyan-400 mt-3 mb-1">{line.replace(/\*\*/g, '')}</h4>;
+        }
+        if (line.match(/^\d+\.\s/)) {
+            const content = line.substring(line.indexOf(' ') + 1);
+            const isBold = content.startsWith('**');
+            const cleanContent = content.replace(/\*\*/g, '');
+            const parts = cleanContent.split(':');
+            return (
+                 <p key={index} className="mt-1">
+                    {isBold ? <strong className="text-cyan-400">{parts[0]}:</strong> : <span className="text-gray-300">{parts[0]}:</span>}
+                    {parts.length > 1 && <span>{parts.slice(1).join(':')}</span>}
+                </p>
+            );
+        }
+        if (line.startsWith('* ')) {
+            return <li key={index} className="ml-5 list-disc text-gray-300">{line.substring(2)}</li>;
+        }
+        return <p key={index} className="text-gray-300">{line}</p>;
     });
-  };
+};
+
 
   return (
     <div className="bg-gray-800/50 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-gray-700 h-full flex flex-col">
-      <div className="flex-grow overflow-y-auto pr-2">
+      <div className="flex-grow overflow-y-auto pr-2" style={{ scrollbarWidth: 'thin', scrollbarColor: '#22d3ee #374151' }}>
         {isLoading && (
             <div className="flex flex-col items-center justify-center h-full">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-400"></div>
@@ -89,7 +105,7 @@ const AIEnergyAdvisor: React.FC<AIEnergyAdvisorProps> = ({ phaseData }) => {
         )}
         {error && <p className="text-red-400">{error}</p>}
         {analysis ? (
-             <div className="prose prose-sm prose-invert text-gray-300 max-w-none">
+             <div className="prose prose-sm prose-invert text-gray-300 max-w-none space-y-2">
                 {renderFormattedAnalysis(analysis)}
              </div>
         ) : (

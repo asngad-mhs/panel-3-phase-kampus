@@ -8,6 +8,7 @@ import PowerChart from './components/PowerChart';
 import AIEnergyAdvisor from './components/AIEnergyAdvisor';
 import { BoltIcon, ZapIcon, BarChartIcon } from './components/Icons';
 import LandingPage from './components/LandingPage';
+import SystemStatus from './components/SystemStatus';
 
 const App: React.FC = () => {
   const [view, setView] = useState<'landing' | 'dashboard'>('landing');
@@ -38,16 +39,19 @@ const App: React.FC = () => {
   const updateData = useCallback(() => {
     setPhaseData(prevData =>
       prevData.map(phase => {
-        const voltageFluctuation = (Math.random() - 0.5) * 2;
-        const currentFluctuation = (Math.random() - 0.5);
-        const newVoltage = parseFloat((phase.voltage + voltageFluctuation).toFixed(1));
+        const voltageFluctuation = (Math.random() - 0.5) * 4; // Increased fluctuation
+        const currentFluctuation = (Math.random() - 0.5) * 1.5;
+        let newVoltage = parseFloat((phase.voltage + voltageFluctuation).toFixed(1));
+        if (newVoltage < 190) newVoltage = 190;
+        if (newVoltage > 250) newVoltage = 250;
+
         const newCurrent = parseFloat((phase.current + currentFluctuation).toFixed(1));
         const newPower = parseFloat(((newVoltage * newCurrent * phase.powerFactor) / 1000).toFixed(2));
         
         let status: 'normal' | 'warning' | 'critical' = 'normal';
-        if (newVoltage > 240 || newVoltage < 200) {
+        if (newVoltage > 245 || newVoltage < 195) {
             status = 'critical';
-        } else if (newVoltage > 230 || newVoltage < 210) {
+        } else if (newVoltage > 235 || newVoltage < 205) {
             status = 'warning';
         }
 
@@ -88,16 +92,37 @@ const App: React.FC = () => {
   const avgVoltage = (phaseData.reduce((acc, phase) => acc + phase.voltage, 0) / phaseData.length).toFixed(1);
   const totalCurrent = phaseData.reduce((acc, phase) => acc + phase.current, 0).toFixed(1);
 
+  const handleDownloadReport = () => {
+    const reportData = {
+      timestamp: new Date().toISOString(),
+      totalPower: `${totalPower} kW`,
+      averageVoltage: `${avgVoltage} V`,
+      totalCurrent: `${totalCurrent} A`,
+      phaseDetails: phaseData,
+      historicalData: historicalData.slice(-10),
+    };
+    const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `unugha_power_report_${new Date().getTime()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   if (view === 'landing') {
     return <LandingPage onEnterDashboard={() => setView('dashboard')} />;
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 p-4 sm:p-6 lg:p-8">
-      <Header onGoHome={() => setView('landing')} />
+    <div className="min-h-screen bg-gray-900 p-4 sm:p-6 lg:p-8 selection:bg-cyan-500 selection:text-gray-900">
+      <Header onGoHome={() => setView('landing')} onDownloadReport={handleDownloadReport} />
       <main className="mt-8">
         {/* Top-level Stats */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+          <SystemStatus phaseData={phaseData} />
           <DashboardCard title="Total Power" value={totalPower} unit="kW" icon={<BoltIcon />} />
           <DashboardCard title="Average Voltage" value={avgVoltage} unit="V" icon={<ZapIcon />} />
           <DashboardCard title="Total Current" value={totalCurrent} unit="A" icon={<BarChartIcon />} />
